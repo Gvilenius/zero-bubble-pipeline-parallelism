@@ -34,7 +34,8 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
         async_grad_allreduce = False
 
     # Matrix multiply.
-    logits_parallel = tensor_parallel.linear_with_grad_accumulation_and_async_allreduce(
+    # logits_parallel = tensor_parallel.linear_with_grad_accumulation_and_async_allreduce(
+    logits_parallel = tensor_parallel.linear_with_frozen_weight(
         input=input_parallel,
         weight=word_embeddings_weight,
         bias=bias,
@@ -366,6 +367,9 @@ class TransformerLanguageModel(MegatronModule):
                                        args.hidden_dropout,
                                        config,
                                        self.num_tokentypes)
+            
+            self.embedding.word_embeddings.weight.requires_grad = False
+            self.embedding.position_embeddings.weight.requires_grad = False
             self._embedding_key = 'embedding'
 
         # Rotary positional embeddings
@@ -537,6 +541,7 @@ class TransformerLanguageModel(MegatronModule):
             enc_dec_attn_mask=enc_dec_attn_mask,
             inference_params=inference_params,
             rotary_pos_emb=rotary_pos_emb)
+
 
         if self.add_pooler and self.post_process:
             return decoder_output, encoder_output, pooled_output

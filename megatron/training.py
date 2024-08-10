@@ -51,7 +51,40 @@ from megatron.core.weight_grad_store import WeightGradStore
 from megatron.utils import report_memory
 from megatron.model.vision.knn_monitor import compute_feature_bank
 
+import torch.distributed as dist
+import json
+import csv
+import os
 
+def output_statistics(fname, t, memory):
+    
+    world_size = dist.get_world_size()
+    final_rank = world_size - 1
+    
+    if dist.get_rank() != final_rank:
+        return
+        
+    with open ("/workspace/weipipe/config.json") as f:
+        config = json.load(f)
+    fname = "/workspace/weipipe/result/{}.csv".format(fname)
+    if config["output"]:
+        init = not os.path.exists (fname)
+        with open(fname, "a") as f:
+            writer = csv.writer(f)
+            
+            l = int(config["n_layers"])
+            h = config["dim"]
+            s = config["max_seq_len"]
+            nm = config["gradient_accumulation_steps"]
+            m = config["batch_size"]
+            v = config["vocab_size"]
+            memory = f"{memory:.2f}"
+
+            nparam = (12 * l * world_size * h**2 + v*h) / 1024**2
+            if init:
+                writer.writerow (["nparam/M", "ngpu", "nlayer", "hidden", "seq_len", "n_micro", "mb", "time", "memory"])
+            t = f"{t:.2f}"
+            writer.writerow([nparam, world_size, l, h, s, nm, m, t, memory])
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
     torch.distributed.barrier()
@@ -356,6 +389,7 @@ def get_optimizer_param_scheduler(optimizer):
     else:
         raise Exception(
             'either train-iters or train-samples should be provided.')
+    print(lr_warmup_steps)
 
     opt_param_scheduler = OptimizerParamScheduler(
         optimizer,
@@ -676,48 +710,60 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
                                      elapsed_time_per_iteration}, iteration)
         log_string = ' iteration {:8d}/{:8d} |'.format(
             iteration, args.train_iters)
-        log_string += ' consumed samples: {:12d} |'.format(
-            args.consumed_train_samples)
+        # log_string += ' consumed samples: {:12d} |'.format(
+        #     args.consumed_train_samples)
         log_string += ' elapsed time per iteration (ms): {:.1f} |'.format(
             elapsed_time_per_iteration * 1000.0)
-        log_string += ' learning rate: {:.3E} |'.format(learning_rate)
-        log_string += ' global batch size: {:5d} |'.format(batch_size)
-        for key in total_loss_dict:
-            if key not in [advanced_iters_key, skipped_iters_key,
-                           nan_iters_key]:
-                avg = total_loss_dict[key].item() / \
-                      float(max(1, total_loss_dict[advanced_iters_key]))
-                if avg > 0.0:
-                    log_string += ' {}: {:.6E} |'.format(key, avg)
-                total_loss_dict[key] = torch.cuda.FloatTensor([0.0])
-        log_string += ' loss scale: {:.1f} |'.format(loss_scale)
-        if grad_norm is not None:
-            log_string += ' grad norm: {:.3f} |'.format(grad_norm)
-        if num_zeros_in_grad is not None:
-            if args.enable_zero_bubble and args.enable_optimizer_post_validation:
-                log_string += ' optimizer rollback: {:.1f} |'.format(num_zeros_in_grad)
-                # Here num_zeros_in_grad is a fake name, representing for optimizer_rollback
-            else:
-                log_string += ' num zeros: {:.1f} |'.format(num_zeros_in_grad)
-        if params_norm is not None:
-            log_string += ' params norm: {:.3f} |'.format(params_norm)
-        log_string += ' number of skipped iterations: {:3d} |'.format(
-            total_loss_dict[skipped_iters_key])
-        log_string += ' number of nan iterations: {:3d} |'.format(
-            total_loss_dict[nan_iters_key])
+        # log_string += ' learning rate: {:.3E} |'.format(learning_rate)
+        # log_string += ' global batch size: {:5d} |'.format(batch_size)
+        # for key in total_loss_dict:
+        #     if key not in [advanced_iters_key, skipped_iters_key,
+        #                    nan_iters_key]:
+        #         avg = total_loss_dict[key].item() / \
+        #               float(max(1, total_loss_dict[advanced_iters_key]))
+        #         if avg > 0.0:
+        #             log_string += ' {}: {:.6E} |'.format(key, avg)
+        #         total_loss_dict[key] = torch.cuda.FloatTensor([0.0])
+        # log_string += ' loss scale: {:.1f} |'.format(loss_scale)
+        # if grad_norm is not None:
+        #     log_string += ' grad norm: {:.3f} |'.format(grad_norm)
+        # if num_zeros_in_grad is not None:
+        #     if args.enable_zero_bubble and args.enable_optimizer_post_validation:
+        #         log_string += ' optimizer rollback: {:.1f} |'.format(num_zeros_in_grad)
+        #         # Here num_zeros_in_grad is a fake name, representing for optimizer_rollback
+        #     else:
+        #         log_string += ' num zeros: {:.1f} |'.format(num_zeros_in_grad)
+        # if params_norm is not None:
+        #     log_string += ' params norm: {:.3f} |'.format(params_norm)
+        # log_string += ' number of skipped iterations: {:3d} |'.format(
+        #     total_loss_dict[skipped_iters_key])
+        # log_string += ' number of nan iterations: {:3d} |'.format(
+        #     total_loss_dict[nan_iters_key])
         total_loss_dict[advanced_iters_key] = 0
         total_loss_dict[skipped_iters_key] = 0
         total_loss_dict[nan_iters_key] = 0
 
+        m = torch.cuda.max_memory_allocated() / 1024**3
+        log_string += " memory : {:.2f}".format(m)
+        
+ 
+            
+        if iteration == int (os.environ["EXIT_INTERVAL"]):
+            max_mem = torch.tensor(m).cuda()
+            dist.all_reduce (max_mem, op=dist.ReduceOp.MAX)
+            algo = os.environ["ALGO"]
+            output_statistics (algo, elapsed_time_per_iteration*1000, float(max_mem))
+            
         if get_args().zero_bubble_v_schedule:
             print_rank_0(log_string)
             # print_rank_last(log_string)
         else:
             print_rank_last(log_string)
+            
         if report_memory_flag and learning_rate > 0.:
             # Report memory after optimizer state has been initialized.
             report_memory('(after {} iterations)'.format(iteration))
-            report_memory_flag = False
+            report_memory_flag = True
         # Removed to avoid global sync
         # timers.log(timers_to_log, normalizer=args.log_interval)
 

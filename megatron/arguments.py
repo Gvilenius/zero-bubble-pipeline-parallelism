@@ -208,8 +208,8 @@ def validate_args(args, defaults={}):
             assert not args.overlap_param_gather, "the original code somehow doesn't work"
             assert not args.overlap_grad_reduce, "not supported yet because we didn't verify the correctness"
         assert args.pipeline_model_parallel_size > 1, "zero bubble must be enabled with pipeline parallelism"
-        if args.enable_optimizer_post_validation:
-            assert args.fp16, "zero bubble post validation"
+        # if args.enable_optimizer_post_validation:
+        #     assert args.fp16, "zero bubble post validation"
         if args.zero_bubble_max_pending_backward == 'auto':
             assert args.zero_bubble_adaptive_memory_limit_percentile > 0
         else:

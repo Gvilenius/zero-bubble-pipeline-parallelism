@@ -6,6 +6,7 @@ from .layers import (
     VocabParallelEmbedding,
     copy_tensor_model_parallel_attributes,
     linear_with_grad_accumulation_and_async_allreduce,
+    linear_with_frozen_weight,
     param_is_not_tensor_parallel_duplicate,
     set_defaults_if_not_set_tensor_model_parallel_attributes,
     set_tensor_model_parallel_attributes,

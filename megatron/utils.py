@@ -5,6 +5,8 @@
 import sys
 
 import torch
+import torch.distributed
+import os
 
 try:
     from apex.multi_tensor_apply import multi_tensor_applier
@@ -110,17 +112,19 @@ def report_memory(name):
     """Simple GPU memory report."""
     mega_bytes = 1024.0 * 1024.0
     string = name + ' memory (MB)'
-    string += ' | allocated: {}'.format(
-        torch.cuda.memory_allocated() / mega_bytes)
-    string += ' | max allocated: {}'.format(
+    # string += ' | allocated: {}'.format(
+    #     torch.cuda.memory_allocated() / mega_bytes)
+    string += ' | max allocated: {:.1f}'.format(
         torch.cuda.max_memory_allocated() / mega_bytes)
-    string += ' | reserved: {}'.format(
-        torch.cuda.memory_reserved() / mega_bytes)
-    string += ' | max reserved: {}'.format(
-        torch.cuda.max_memory_reserved() / mega_bytes)
+    # string += ' | reserved: {}'.format(
+    #     torch.cuda.memory_reserved() / mega_bytes)
+    # string += ' | max reserved: {}'.format(
+    #     torch.cuda.max_memory_reserved() / mega_bytes)
+    algo = os.environ["ALGO"]
+    
     if mpu.get_data_parallel_rank() == 0:
-        print("[Rank {}] {}".format(torch.distributed.get_rank(), string),
-              flush=True)
+        with open ("/workspace/weipipe/result/memory.txt", 'a') as f:
+            f.write("[Rank {}] {}\n".format(torch.distributed.get_rank(), string))
 
 
 def print_params_min_max_norm(optimizer, iteration):

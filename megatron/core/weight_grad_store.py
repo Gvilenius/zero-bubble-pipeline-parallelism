@@ -76,8 +76,8 @@ class WeightGradStore:
         config = get_model_config(model)
         # Do async all-reduce for embedding grads firstly, so that the rank 0 won't
         # be blocked
-        embedding_handles = _allreduce_embedding_grads([model], config, async_op=True)
-        handles += embedding_handles
+        # embedding_handles = _allreduce_embedding_grads([model], config, async_op=True)
+        # handles += embedding_handles
 
         for i in range(len(weight_grad_tasks)):
             tasks = weight_grad_tasks[i]
@@ -97,7 +97,7 @@ class WeightGradStore:
             weight_grad_tasks[i] = None  # release memory
 
         # timers('wait_all_reduce', log_level=1).start(barrier=False)
-        for handle in embedding_handles:
-            if handle is not None:
-                handle.wait()
+        # for handle in embedding_handles:
+        #     if handle is not None:
+        #         handle.wait()
         # timers('wait_all_reduce').stop()

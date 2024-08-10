@@ -29,7 +29,7 @@ if [ -z "$GPUS_PER_NODE" ]; then
 fi
 
 if [ -z "$EXIT_INTERVAL" ]; then
-  EXIT_INTERVAL=1000
+  EXIT_INTERVAL=30
 fi
 
 WORLD_SIZE_IN_GPUS=$(( $WORLD_SIZE * $GPUS_PER_NODE ))
@@ -39,7 +39,7 @@ if [ -z "$PIPELINE_SIZE" ]; then
   LAYERS=$(( $PIPELINE_SIZE * 4 - 2))
   MICRO_BATCH_SIZE=1
   GLOBAL_BATCH_SIZE=$(( $PIPELINE_SIZE * 3 * $MICRO_BATCH_SIZE ))
-  HIDDEN_SIZE=4096
+  HIDDEN_SIZE=1024
   ATTENTION_HEADS=32
   ZERO_BUBBLE_MEM_LIMIT=$((2 * $PIPELINE_SIZE))
 fi
@@ -68,18 +68,18 @@ options=" \
   --hidden-size $HIDDEN_SIZE \
   --num-attention-heads $ATTENTION_HEADS \
   --exit-interval $EXIT_INTERVAL \
-  --seq-length 1024 \
+  --seq-length $SEQ_LEN \
   --max-position-embeddings 2048 \
   --micro-batch-size $MICRO_BATCH_SIZE \
   --global-batch-size $GLOBAL_BATCH_SIZE \
   --train-samples 146484375 \
   --lr-decay-samples 126953125 \
-  --lr-warmup-samples 183105 \
-  --lr 6.0e-5 \
+  --lr-warmup-samples 1 \
+  --lr 5.0e-5 \
   --min-lr 6.0e-6 \
   --lr-decay-style cosine \
-  --log-interval 10 \
-  --eval-iters 40 \
+  --log-interval 1\
+  --eval-iters 1\
   --eval-interval $EVAL_INTERVAL \
   --data-path ${DATASET} \
   --tokenizer-type GPTSentencePieceTokenizer \
@@ -91,13 +91,14 @@ options=" \
   --adam-beta2 0.95 \
   --init-method-std 0.006 \
   --no-barrier-with-level-1-timing \
-  --profile-step-start 150 \
-  --profile-step-end 170 \
-  --profile-ranks $profile_ranks \
   --allow-padding-num-layers"
-
+  # --use-flash-attn \
+  # --profile-step-start 150 \
+  # --profile-step-end 170 \
+  # --profile-ranks $profile_ranks \
 if [ -z "$FP32" ]; then
-  options="$options --fp16"
+  options="$options  --bf16 --recompute-activations"
+  # options="$options  --bf16"
 fi
 
 if [ ! -z "$PROFILED" ]; then
@@ -114,9 +115,9 @@ if [ ! -z "$ENABLE_ZERO_BUBBLE" ]; then
   --zero-bubble-pipeline-timers-start-iter $ZERO_BUBBLE_TIMER_START \
   --zero-bubble-pipeline-timers-end-iter $ZERO_BUBBLE_TIMER_END \
   --zero-bubble-max-pending-backward $ZERO_BUBBLE_MEM_LIMIT"
-  if [ -z "$FP32" ]; then
-    options="$options --enable-optimizer-post-validation"
-  fi
+#  if [ -z "$FP32" ]; then
+#    options="$options --enable-optimizer-post-validation"
+#  fi
 fi
 
 if [ ! -z "$ENABLE_EXACTLY_NUMERIC_MATCH" ]; then

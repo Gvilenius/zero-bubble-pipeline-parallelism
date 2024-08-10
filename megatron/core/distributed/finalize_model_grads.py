@@ -158,10 +158,10 @@ def finalize_model_grads(model: List[torch.nn.Module]):
         config.timers('embedding-grads-all-reduce', log_level=1).start(
             barrier=config.barrier_with_L1_time
         )
-    if not get_args().enable_zero_bubble:
-        # For zero bubble schedules, we do async all-reduce for embedding grads
-        # in WeightGradStore.clear() so that it won't generate bubbles
-        _allreduce_embedding_grads(model, config)
+    # if not get_args().enable_zero_bubble:
+    #     # For zero bubble schedules, we do async all-reduce for embedding grads
+    #     # in WeightGradStore.clear() so that it won't generate bubbles
+    #     _allreduce_embedding_grads(model, config)
     if config.timers is not None:
         config.timers('embedding-grads-all-reduce').stop()
 

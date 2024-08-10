@@ -46,7 +46,6 @@ def get_param_groups(modules,
                 no_wd_no_scale_lr.append(param)
             else:
                 no_wd_scale_lr.append(param)
-
     param_groups = []
     if len(wd_no_scale_lr):
         param_groups.append({'params': wd_no_scale_lr, 'wd_mult': 1.0, 'lr_mult': 1.0})
@@ -70,6 +69,7 @@ def get_megatron_optimizer(model,
                                     no_weight_decay_cond,
                                     scale_lr_cond,
                                     lr_mult)
+    
 
     if args.optimizer == 'adam':
         optimizer = Adam(param_groups,
