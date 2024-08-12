@@ -69,7 +69,7 @@ options=" \
   --num-attention-heads $ATTENTION_HEADS \
   --exit-interval $EXIT_INTERVAL \
   --seq-length $SEQ_LEN \
-  --max-position-embeddings 2048 \
+  --max-position-embeddings $SEQ_LEN \
   --micro-batch-size $MICRO_BATCH_SIZE \
   --global-batch-size $GLOBAL_BATCH_SIZE \
   --train-samples 146484375 \
