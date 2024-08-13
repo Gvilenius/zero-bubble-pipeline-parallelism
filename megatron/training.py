@@ -746,7 +746,8 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             max_mem = torch.tensor(m).cuda()
             dist.all_reduce (max_mem, op=dist.ReduceOp.MAX)
             algo = os.environ["ALGO"]
-            output_statistics (algo, elapsed_time_per_iteration*1000, float(max_mem))
+            if is_last_rank():
+                output_statistics (algo, elapsed_time_per_iteration*1000, float(max_mem))
             
         if get_args().zero_bubble_v_schedule:
             print_rank_0(log_string)
