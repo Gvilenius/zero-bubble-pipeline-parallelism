@@ -92,7 +92,8 @@ options=" \
   --init-method-std 0.006 \
   --no-barrier-with-level-1-timing \
    --use-flash-attn \
-
+  --swiglu \
+  --fp16-lm-cross-entropy \
   --allow-padding-num-layers"
   # --use-flash-attn \
   # --profile-step-start 150 \
@@ -105,7 +106,7 @@ if [ -z "$FP32" ]; then
   # options="$options  --bf16"
 fi
 
-if [ ! -z "$CHECKPOINT" ]; then
+if [ ! -z "$CHECKPOINTING" ]; then
   options = "$options  --checkpoint-activations"
 fi
 
