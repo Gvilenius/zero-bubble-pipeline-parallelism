@@ -56,35 +56,29 @@ import json
 import csv
 import os
 
-def output_statistics(fname, t, memory):
-    
-    world_size = dist.get_world_size()
-    final_rank = world_size - 1
-    
-    if dist.get_rank() != final_rank:
-        return
-        
-    with open ("/workspace/weipipe/config.json") as f:
-        config = json.load(f)
-    fname = "/workspace/weipipe/result/{}.csv".format(fname)
-    if config["output"]:
-        init = not os.path.exists (fname)
-        with open(fname, "a") as f:
-            writer = csv.writer(f)
-            
-            l = int(config["n_layers"])
-            h = config["dim"]
-            s = config["max_seq_len"]
-            nm = config["gradient_accumulation_steps"]
-            m = config["batch_size"]
-            v = config["vocab_size"]
-            memory = f"{memory:.2f}"
+def get_env(k):
+    return int(os.environ[k])
 
-            nparam = (12 * l * world_size * h**2 + v*h) / 1024**2
-            if init:
-                writer.writerow (["nparam/M", "ngpu", "nlayer", "hidden", "seq_len", "n_micro", "mb", "time", "memory"])
-            t = f"{t:.2f}"
-            writer.writerow([nparam, world_size, l, h, s, nm, m, t, memory])
+def output_statistics(fname, t, memory):
+    world_size = dist.get_world_size()
+    fname = "/workspace/weipipe/result/{}.csv".format(fname)
+    init = not os.path.exists (fname)
+    with open(fname, "a") as f:
+        writer = csv.writer(f)
+        
+        l = get_env ("LAYERS")
+        h = get_env ("HIDDEN_SIZE")
+        s = get_env ("SEQ_LEN")
+        acc_step = get_env ("ACC_STEP")
+        m = get_env ("MICRO_BATCH_SIZE")
+        v = 32000
+        memory = f"{memory:.2f}"
+
+        nparam = (12 * l * h**2 + v*h) / 1024**2
+        if init:
+            writer.writerow (["nparam/M", "ngpu", "nlayer", "hidden", "seq_len", "n_micro", "mb", "time", "memory"])
+        writer.writerow([nparam, world_size, l, h, s, acc_step, m, t, memory])
+            
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
     torch.distributed.barrier()
