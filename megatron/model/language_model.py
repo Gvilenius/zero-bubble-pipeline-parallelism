@@ -498,6 +498,8 @@ class TransformerLanguageModel(MegatronModule):
                 rotary_pos_emb = self.rotary_pos_emb(self.seq_length)
 
         # Run encoder.
+
+            
         if enc_hidden_states is None:
             if self.encoder is not None:
                 encoder_output = self.encoder(
@@ -512,6 +514,7 @@ class TransformerLanguageModel(MegatronModule):
         else:
             encoder_output = enc_hidden_states.to(encoder_input.dtype)
 
+        
         if self.post_process:
             if self.add_pooler:
                 pooled_output = self.pooler(encoder_output,

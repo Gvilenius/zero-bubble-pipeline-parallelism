@@ -382,7 +382,6 @@ class CoreAttention(MegatronModule):
         # attention scores and attention mask [b, np, sq, sk]
         attention_probs = self.scale_mask_softmax(attention_scores,
                                                   attention_mask)
-
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
         if not self.sequence_parallel:
@@ -585,9 +584,14 @@ class ParallelAttention(MegatronModule):
         self.checkpoint_core_attention = config.recompute_granularity == 'selective'
 
         if self.use_flash_attn:
-            self.core_attention_flash = FlashSelfAttention(
-                causal=True, attention_dropout=config.attention_dropout
-            )
+            
+            # self.core_attention_flash = FlashSelfAttention(
+            #     causal=True, attention_dropout=config.attention_dropout
+            # )
+            def func (q, k, v):
+                return torch.nn.functional.scaled_dot_product_attention (q,k,v,attn_mask=None, is_causal=True)
+            self.core_attention_flash = func
+        
 
         # Output.
         self.dense = tensor_parallel.RowParallelLinear(
@@ -608,12 +612,15 @@ class ParallelAttention(MegatronModule):
             key_layer = inputs[1]
             value_layer = inputs[2]
             attention_mask = inputs[3]
+
             output_ = self.core_attention(query_layer, key_layer,
                                           value_layer, attention_mask)
+
             return output_
 
         q_pos_emb, k_pos_emb = (None, None) if rotary_pos_emb is None \
             else rotary_pos_emb
+
 
         hidden_states = tensor_parallel.checkpoint(
             custom_forward,
@@ -791,8 +798,10 @@ class ParallelAttention(MegatronModule):
 
         if not self.use_flash_attn:
             if self.checkpoint_core_attention:
+
                 context_layer = self._checkpointed_attention_forward(
                     query_layer, key_layer, value_layer, attention_mask)
+
             else:
                 context_layer = self.core_attention(
                     query_layer, key_layer, value_layer, attention_mask)
@@ -1147,13 +1156,13 @@ class ParallelTransformerLayer(MegatronModule):
         norm_output = self.input_norm(hidden_states)
 
         # Self attention.
+
         attention_output, attention_bias = \
             self.self_attention(
                 norm_output,
                 attention_mask,
                 inference_params=inference_params,
                 rotary_pos_emb=rotary_pos_emb)
-
         # Residual connection.
         if self.apply_residual_connection_post_norm:
             residual = norm_output
@@ -1224,8 +1233,9 @@ class ParallelTransformerLayer(MegatronModule):
                             self.layer_type.name)
 
         # MLP.
-        mlp_output, mlp_bias = self.mlp(norm_output)
 
+        mlp_output, mlp_bias = self.mlp(norm_output)
+        
         # Second residual connection.
         if self.apply_residual_connection_post_norm:
             residual = norm_output
@@ -1674,6 +1684,7 @@ class ParallelTransformer(MegatronModule):
                         hidden_states, attention_mask, encoder_output,
                         enc_dec_attn_mask, **te_forward_kwargs)
                 else:
+
                     hidden_states = tensor_parallel.checkpoint(
                         custom(l, l + self.recompute_num_layers),
                         self.distribute_saved_activations,

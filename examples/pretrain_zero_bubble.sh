@@ -91,15 +91,24 @@ options=" \
   --adam-beta2 0.95 \
   --init-method-std 0.006 \
   --no-barrier-with-level-1-timing \
+   --use-flash-attn \
+
   --allow-padding-num-layers"
   # --use-flash-attn \
   # --profile-step-start 150 \
   # --profile-step-end 170 \
   # --profile-ranks $profile_ranks \
+  
 if [ -z "$FP32" ]; then
-  options="$options  --bf16 --recompute-activations"
+  options="$options  --fp16"
+    # options="$options  --bf16  --recompute-granularity full --recompute-method uniform --recompute-num-layers 1"
   # options="$options  --bf16"
 fi
+
+if [ ! -z "$CHECKPOINT" ]; then
+  options = "$options  --checkpoint-activations"
+fi
+
 
 if [ ! -z "$PROFILED" ]; then
   options="$options --profile"

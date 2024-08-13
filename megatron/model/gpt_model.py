@@ -79,6 +79,8 @@ class GPTModel(MegatronModule):
                 retriever_attn_mask=None,
                 labels=None, tokentype_ids=None, inference_params=None):
 
+        
+
         lm_output = self.language_model(
             input_ids,
             position_ids,

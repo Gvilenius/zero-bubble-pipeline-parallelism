@@ -96,7 +96,7 @@ class MegatronModule(torch.nn.Module):
                 config=self.config, init_method=self.config.init_method)
             self.word_embeddings.weight.data.fill_(0)
             self.word_embeddings.weight.shared = True
-            self.word_embeddings.weight.requires_grad = False
+            # self.word_embeddings.weight.requires_grad = False
 
         # Zero out initial weights for decoder embedding.
         # NOTE: We don't currently support T5 with the interleaved schedule.

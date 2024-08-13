@@ -5,6 +5,7 @@ from typing import Callable, Iterator, List, Optional, Union
 
 import torch
 from torch.autograd.variable import Variable
+import torch.distributed
 
 from megatron import core, get_args
 from megatron.core import parallel_state
@@ -127,6 +128,7 @@ def custom_backward(output, grad_output):
     grad have the same shape, while C++'s 'backward' does not.
     '''
 
+    
     assert output.numel() == 1, "output should be pseudo-'freed' in schedule, to optimize memory"
     assert isinstance(output, torch.Tensor), "output == '%s'." % type(output).__name__
     assert isinstance(grad_output, (torch.Tensor, type(None))), (
@@ -138,6 +140,9 @@ def custom_backward(output, grad_output):
         assert output.numel() == 1, "implicit grad requires scalar output."
         grad_output = torch.ones_like(output, memory_format=torch.preserve_format,)
 
+    if output.requires_grad == False:
+        return
+    
     # Call c++ engine [ see torch/csrc/autograd/python_engine.cpp ]
     Variable._execution_engine.run_backward(
         tensors=(output,),
@@ -188,7 +193,10 @@ def forward_step(
         if checkpoint_activations_microbatch is None:
             if get_args().profile:
                 torch.cuda.nvtx.range_push('forward_step_func')
+                
+
             output_tensor, loss_func = forward_step_func(data_iterator, model)
+
             if get_args().profile:
                 torch.cuda.nvtx.range_pop()
         else:
@@ -1152,6 +1160,7 @@ def forward_backward_pipelining_without_interleaving(
     model_type = get_model_type(model)
 
     rank = parallel_state.get_pipeline_model_parallel_rank()
+
     recv_tensor_shapes = get_tensor_shapes(
         rank=rank - 1,
         model_type=model_type,
@@ -1178,6 +1187,7 @@ def forward_backward_pipelining_without_interleaving(
     forward_data_store = []
 
     # Run warmup forward passes.
+
     for i in range(num_warmup_microbatches):
         # Decide to checkpoint all layers' activations of the current micro-batch
         if max_outstanding_backprops is not None:
@@ -1189,6 +1199,7 @@ def forward_backward_pipelining_without_interleaving(
             checkpoint_activations_microbatch = None
 
         input_tensor = recv_forward(recv_tensor_shapes, config)
+
         output_tensor = forward_step(
             forward_step_func,
             data_iterator,
@@ -1200,6 +1211,7 @@ def forward_backward_pipelining_without_interleaving(
             collect_non_loss_data,
             checkpoint_activations_microbatch,
         )
+
         send_forward(output_tensor, send_tensor_shapes, config)
 
         if not forward_only:
@@ -1210,6 +1222,8 @@ def forward_backward_pipelining_without_interleaving(
     # Before running 1F1B, need to receive first forward tensor.
     # If all microbatches are run in warmup / cooldown phase, then no need to
     # receive this tensor here.
+    
+
     if num_microbatches_remaining > 0:
         input_tensor = recv_forward(recv_tensor_shapes, config)
 
