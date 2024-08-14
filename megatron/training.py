@@ -8,6 +8,8 @@ import collections
 import math
 import logging
 import sys
+
+import torch.distributed
 from .log_handler import CustomHandler
 # Make default logging level INFO, but filter out all log messages not from MCore.
 logging.basicConfig(handlers=[CustomHandler()], level=logging.INFO)
@@ -74,10 +76,10 @@ def output_statistics(fname, t, memory):
         v = 32000
         memory = f"{memory:.2f}"
 
-        nparam = (12 * l * h**2 + v*h) / 1024**2
+        nparam = (12 * l * h**2 + 2*v*h) / 1024**2
         if init:
             writer.writerow (["nparam/M", "ngpu", "nlayer", "hidden", "seq_len", "n_micro", "mb", "time", "memory"])
-        writer.writerow([nparam, world_size, l, h, s, acc_step, m, t, memory])
+        writer.writerow([nparam, world_size, l, h, s, acc_step, m, int(t), memory])
             
 def print_datetime(string):
     """Note that this call will sync across all ranks."""
@@ -611,6 +613,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
 
     # Tensorboard values.
     # Timer requires all the ranks to call.
+    
     if args.log_timers_to_tensorboard and \
        (iteration % args.tensorboard_log_interval == 0):
         timers.write(timers_to_log, writer, iteration,
@@ -738,17 +741,16 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         total_loss_dict[nan_iters_key] = 0
 
         m = torch.cuda.max_memory_allocated() / 1024**3
-        log_string += " memory : {:.2f}".format(m)
         
- 
-            
         if iteration == int (os.environ["EXIT_INTERVAL"]):
             max_mem = torch.tensor(m).cuda()
             dist.all_reduce (max_mem, op=dist.ReduceOp.MAX)
             algo = os.environ["ALGO"]
             if is_last_rank():
                 output_statistics (algo, elapsed_time_per_iteration*1000, float(max_mem))
-            
+        
+        log_string += " memory : {:.2f}".format(m)
+        
         if get_args().zero_bubble_v_schedule:
             print_rank_0(log_string)
             # print_rank_last(log_string)
@@ -762,7 +764,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         # Removed to avoid global sync
         # timers.log(timers_to_log, normalizer=args.log_interval)
 
-    return report_memory_flag
+    return report_memory_flag, elapsed_time
 
 
 def save_checkpoint_and_time(iteration, model, optimizer, opt_param_scheduler):
@@ -830,7 +832,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         gc.collect()
 
 
-    enable_prof = True
+    enable_prof = bool(int(os.environ["PROF"]))
 
     if enable_prof:
         prof = torch.profiler.profile(
@@ -840,11 +842,13 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             # activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
         )
         prof.start()
+        
+    total_time = 0
+    args.train_iters = int(os.environ["EXIT_INTERVAL"])
     
     while iteration < args.train_iters:
         if enable_prof:
             prof.step()
-        
         
         if args.profile and \
            iteration == args.profile_step_start and \
@@ -875,12 +879,14 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         params_norm = None
         if args.log_params_norm:
             params_norm = calc_params_l2_norm(model)
-        report_memory_flag = training_log(loss_dict, total_loss_dict,
+        report_memory_flag, elapsed_time = training_log(loss_dict, total_loss_dict,
                                           optimizer.param_groups[0]['lr'],
                                           iteration, loss_scale,
                                           report_memory_flag, skipped_iter,
                                           grad_norm, params_norm, num_zeros_in_grad)
-
+        if iteration > 1:
+            total_time += elapsed_time
+            
         # Autoresume
         if args.adlr_autoresume and \
            (iteration % args.adlr_autoresume_interval == 0):
@@ -953,10 +959,20 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             if args.manual_gc_interval != 0 and iteration % args.manual_gc_interval == 0:
                 gc.collect()
 
+    algo = os.environ["ALGO"]
+
     if enable_prof:
         prof.stop()
-        if is_last_rank():
-            prof.export_chrome_trace("trace.json")
+        if torch.distributed.get_rank() == 0:
+            prof.export_chrome_trace(f"/workspace/weipipe/{algo}-trace.json")
+            
+    m = torch.cuda.max_memory_allocated() / 1024**3 
+    max_mem = torch.tensor(m).cuda()
+    dist.all_reduce (max_mem, op=dist.ReduceOp.MAX)
+    if is_last_rank():
+        output_statistics (algo, total_time/(args.train_iters-1)*1000, float(max_mem))
+    
+ 
             
     # Flush TensorBoard and WandB writers.
     writer = get_tensorboard_writer()
