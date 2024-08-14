@@ -741,14 +741,6 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         total_loss_dict[nan_iters_key] = 0
 
         m = torch.cuda.max_memory_allocated() / 1024**3
-        
-        if iteration == int (os.environ["EXIT_INTERVAL"]):
-            max_mem = torch.tensor(m).cuda()
-            dist.all_reduce (max_mem, op=dist.ReduceOp.MAX)
-            algo = os.environ["ALGO"]
-            if is_last_rank():
-                output_statistics (algo, elapsed_time_per_iteration*1000, float(max_mem))
-        
         log_string += " memory : {:.2f}".format(m)
         
         if get_args().zero_bubble_v_schedule:
@@ -969,6 +961,7 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
     m = torch.cuda.max_memory_allocated() / 1024**3 
     max_mem = torch.tensor(m).cuda()
     dist.all_reduce (max_mem, op=dist.ReduceOp.MAX)
+    
     if is_last_rank():
         output_statistics (algo, total_time/(args.train_iters-1)*1000, float(max_mem))
     
