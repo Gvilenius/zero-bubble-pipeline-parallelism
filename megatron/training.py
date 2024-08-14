@@ -829,7 +829,23 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
         gc.disable()
         gc.collect()
 
+
+    enable_prof = True
+
+    if enable_prof:
+        prof = torch.profiler.profile(
+            schedule=torch.profiler.schedule(wait=1, warmup=1, active=2, repeat=1),
+            record_shapes=False,
+            with_stack=False,
+            # activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+        )
+        prof.start()
+    
     while iteration < args.train_iters:
+        if enable_prof:
+            prof.step()
+        
+        
         if args.profile and \
            iteration == args.profile_step_start and \
            torch.distributed.get_rank() in args.profile_ranks:
@@ -937,6 +953,11 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
             if args.manual_gc_interval != 0 and iteration % args.manual_gc_interval == 0:
                 gc.collect()
 
+    if enable_prof:
+        prof.stop()
+        if is_last_rank():
+            prof.export_chrome_trace("trace.json")
+            
     # Flush TensorBoard and WandB writers.
     writer = get_tensorboard_writer()
     if writer:

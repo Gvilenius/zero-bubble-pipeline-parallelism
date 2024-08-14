@@ -34,14 +34,24 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
         async_grad_allreduce = False
 
     # Matrix multiply.
-    # logits_parallel = tensor_parallel.linear_with_grad_accumulation_and_async_allreduce(
-    logits_parallel = tensor_parallel.linear_with_frozen_weight(
-        input=input_parallel,
+    
+    import os
+    if os.environ["TRAIN_EMBEDDING"] == "1":
+        logits_parallel = tensor_parallel.linear_with_grad_accumulation_and_async_allreduce(
+                input=input_parallel,
         weight=word_embeddings_weight,
         bias=bias,
         gradient_accumulation_fusion=args.gradient_accumulation_fusion,
         async_grad_allreduce=async_grad_allreduce,
         sequence_parallel=args.sequence_parallel)
+    else:
+        logits_parallel = tensor_parallel.linear_with_frozen_weight(
+            input=input_parallel,
+            weight=word_embeddings_weight,
+            bias=bias,
+            gradient_accumulation_fusion=args.gradient_accumulation_fusion,
+            async_grad_allreduce=async_grad_allreduce,
+            sequence_parallel=args.sequence_parallel)
     # Gather if needed.
 
     if parallel_output:
@@ -368,8 +378,11 @@ class TransformerLanguageModel(MegatronModule):
                                        config,
                                        self.num_tokentypes)
             
-            self.embedding.word_embeddings.weight.requires_grad = False
-            self.embedding.position_embeddings.weight.requires_grad = False
+            import os
+            if int(os.environ["TRAIN_EMBEDDING"]) == 0:
+                self.embedding.word_embeddings.weight.requires_grad = False
+                self.embedding.position_embeddings.weight.requires_grad = False
+                
             self._embedding_key = 'embedding'
 
         # Rotary positional embeddings
