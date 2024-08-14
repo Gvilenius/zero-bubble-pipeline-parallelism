@@ -1183,7 +1183,8 @@ def build_train_valid_test_data_loaders(
     is_distributed = getattr(build_train_valid_test_datasets_provider, "is_distributed", False)
 
     # Construct the data pipeline
-    if is_distributed or mpu.get_tensor_model_parallel_rank() == 0:
+    # if is_distributed or mpu.get_tensor_model_parallel_rank() == 0:
+    if is_distributed or mpu.get_pipeline_model_parallel_rank() == 0:
 
         # Build datasets.
         train_ds, valid_ds, test_ds = build_train_valid_test_datasets(

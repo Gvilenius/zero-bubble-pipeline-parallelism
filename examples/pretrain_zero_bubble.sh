@@ -11,10 +11,10 @@ mkdir -p $DIR/logs
 
 DATASET="/tmp/zb_sample_dataset/dataset/c4_text_document"
 
-if [ ! -e "$DATASET"".idx" ]; then
-  wget https://huggingface.co/datasets/ufotalent/zero_bubble_sample_dataset/resolve/main/zb_sample_dataset.tar.gz
-  tar -xvf zb_sample_dataset.tar.gz -C /tmp
-fi
+# if [ ! -e "$DATASET"".idx" ]; then
+#   wget https://huggingface.co/datasets/ufotalent/zero_bubble_sample_dataset/resolve/main/zb_sample_dataset.tar.gz
+#   tar -xvf zb_sample_dataset.tar.gz -C /tmp
+# fi
 
 # Running locally
 if [ -z "$WORLD_SIZE" ]; then
