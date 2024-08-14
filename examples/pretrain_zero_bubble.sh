@@ -72,9 +72,7 @@ options=" \
   --max-position-embeddings $SEQ_LEN \
   --micro-batch-size $MICRO_BATCH_SIZE \
   --global-batch-size $GLOBAL_BATCH_SIZE \
-  --train-samples 146484375 \
-  --lr-decay-samples 126953125 \
-  --lr-warmup-samples 1 \
+  --train-iters 20 \
   --lr 5.0e-5 \
   --min-lr 6.0e-6 \
   --lr-decay-style cosine \
@@ -101,13 +99,11 @@ options=" \
   # --profile-ranks $profile_ranks \
   
 if [ -z "$FP32" ]; then
-  options="$options  --fp16"
-    # options="$options  --bf16  --recompute-granularity full --recompute-method uniform --recompute-num-layers 1"
-  # options="$options  --bf16"
+  options="$options  --bf16"
 fi
 
 if [ ! -z "$CHECKPOINTING" ]; then
-  options = "$options  --checkpoint-activations"
+   options="$options --recompute-granularity full --recompute-method uniform --recompute-num-layers 1"
 fi
 
 

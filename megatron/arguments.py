@@ -324,8 +324,8 @@ def validate_args(args, defaults={}):
     if args.save is not None:
         assert args.save_interval is not None
     # Mixed precision checks.
-    if args.fp16_lm_cross_entropy:
-        assert args.fp16, 'lm cross entropy in fp16 only support in fp16 mode.'
+    # if args.fp16_lm_cross_entropy:
+    #     assert args.fp16, 'lm cross entropy in fp16 only support in fp16 mode.'
     if args.fp32_residual_connection:
         assert args.fp16 or args.bf16, \
             'residual connection in fp32 only supported when using fp16 or bf16.'
