@@ -85,7 +85,7 @@ def bootstrap_and_profile_p2p_communication(
     config, send_tensor_shapes, recv_tensor_shapes
     ):
     if ScheduleTimers.iter_counter == 1 and parallel_state.get_pipeline_model_parallel_world_size() > 1:
-        nccl_init_tensor = [torch.Tensor([0]).cuda()]
+        nccl_init_tensor = [torch.Tensor([0]).bfloat16().cuda()]
         shape = [(1,)]
         if get_args().zero_bubble_v_schedule:
             # Make everyone think they are the first chunk, so we still need additional check to prevent rank -1 to send_forward/recv_backward

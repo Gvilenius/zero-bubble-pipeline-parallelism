@@ -188,6 +188,7 @@ def pretrain(train_valid_test_dataset_provider,
             print_rank_0("retro cyclic train iters : %d" % args.train_iters)
 
         iteration = 0
+        
         if args.do_train and args.train_iters > 0:
             iteration = train(forward_step_func,
                               model, optimizer, opt_param_scheduler,
