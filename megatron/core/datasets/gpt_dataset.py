@@ -7,6 +7,7 @@ from typing import Dict, Tuple
 
 import numpy
 import torch
+import torch.distributed
 
 from megatron.core.datasets.blended_megatron_dataset_config import GPTDatasetConfig
 from megatron.core.datasets.indexed_dataset import MMapIndexedDataset
@@ -204,7 +205,8 @@ class GPTDataset(MegatronDataset):
 
         num_epochs = _get_num_epochs(num_tokens_per_epoch, sequence_length, self.num_samples)
 
-        if not cache_hit and torch.distributed.get_rank() == 0:
+        local_rank = int(os.environ["LOCAL_RANK"])
+        if not cache_hit and local_rank == 0:
             log_single_rank(
                 logger,
                 logging.INFO,
@@ -309,7 +311,7 @@ class GPTDataset(MegatronDataset):
             numpy.save(path_to_shuffle_index, shuffle_index, allow_pickle=True)
             t_end = time.time()
             log_single_rank(logger, logging.DEBUG, f"\t> time elapsed: {t_end - t_beg:4f} seconds")
-
+        
         log_single_rank(
             logger, logging.INFO, f"Load the {type(self).__name__} {self.index_split.name} indices"
         )
