@@ -206,7 +206,7 @@ class GPTDataset(MegatronDataset):
         num_epochs = _get_num_epochs(num_tokens_per_epoch, sequence_length, self.num_samples)
 
         local_rank = int(os.environ["LOCAL_RANK"])
-        if not cache_hit and local_rank == 0:
+        if not cache_hit:
             log_single_rank(
                 logger,
                 logging.INFO,
