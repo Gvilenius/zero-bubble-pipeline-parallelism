@@ -89,21 +89,21 @@ options=" \
   --adam-beta2 0.95 \
   --init-method-std 0.006 \
   --no-barrier-with-level-1-timing \
-   --use-flash-attn \
   --swiglu \
+  --use-flash-attn \
   --fp16-lm-cross-entropy \
   --allow-padding-num-layers"
-  # --use-flash-attn \
   # --profile-step-start 150 \
   # --profile-step-end 170 \
   # --profile-ranks $profile_ranks \
   
 if [ -z "$FP32" ]; then
-  options="$options  --bf16"
+  options="$options --fp16"
 fi
 
 if [ ! -z "$CHECKPOINTING" ]; then
    options="$options --recompute-granularity full --recompute-method uniform --recompute-num-layers 1"
+  # options="$options --recompute-activations"
 fi
 
 
@@ -122,9 +122,9 @@ if [ ! -z "$ENABLE_ZERO_BUBBLE" ]; then
   --zero-bubble-pipeline-timers-end-iter $ZERO_BUBBLE_TIMER_END \
   --zero-bubble-max-pending-backward $ZERO_BUBBLE_MEM_LIMIT"
   
-#  if [ -z "$FP32" ]; then
-#    options="$options --enable-optimizer-post-validation"
-#  fi
+  if [ -z "$FP32" ]; then
+    options="$options --enable-optimizer-post-validation"
+  fi
 fi
 
 if [ ! -z "$ENABLE_EXACTLY_NUMERIC_MATCH" ]; then
