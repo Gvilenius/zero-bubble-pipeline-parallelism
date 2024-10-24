@@ -699,13 +699,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
         # timers.log(timers_to_log, normalizer=total_iterations)
         elapsed_time = timers('interval-time').elapsed(barrier=False)
         elapsed_time_per_iteration = elapsed_time / total_iterations
-        if writer:
-            if args.log_timers_to_tensorboard:
-                writer.add_scalar('iteration-time',
-                                  elapsed_time_per_iteration, iteration)
-                if wandb_writer:
-                    wandb_writer.log({'iteration-time':
-                                     elapsed_time_per_iteration}, iteration)
+
         log_string = ' iteration {:8d}/{:8d} |'.format(
             iteration, args.train_iters)
         # log_string += ' consumed samples: {:12d} |'.format(
@@ -748,7 +742,7 @@ def training_log(loss_dict, total_loss_dict, learning_rate, iteration,
             print_rank_0(log_string)
             # print_rank_last(log_string)
         else:
-            print_rank_last(log_string)
+            print_rank_0(log_string)
             
         if report_memory_flag and learning_rate > 0.:
             # Report memory after optimizer state has been initialized.
@@ -829,9 +823,9 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     if enable_prof:
         prof = torch.profiler.profile(
-            schedule=torch.profiler.schedule(wait=1, warmup=1, active=2, repeat=1),
+            schedule=torch.profiler.schedule(wait=1, warmup=1, active=1, repeat=3),
             record_shapes=False,
-            with_stack=False,
+            with_stack=True,
             # activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
         )
         prof.start()
@@ -879,69 +873,19 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
                                           grad_norm, params_norm, num_zeros_in_grad)
         if iteration > 1:
             total_time += elapsed_time
-            
-        # Autoresume
-        if args.adlr_autoresume and \
-           (iteration % args.adlr_autoresume_interval == 0):
-            check_adlr_autoresume_termination(iteration, model, optimizer,
-                                              opt_param_scheduler)
-
-        # Evaluation
-        if do_eval:
-            if args.manual_gc and args.manual_gc_eval:
-                # Collect all objects.
-                gc.collect()
-            prefix = 'iteration {}'.format(iteration)
-            evaluate_and_print_results(prefix, forward_step_func,
-                                       valid_data_iterator, model,
-                                       iteration, process_non_loss_data_func,
-                                       config, False)
-            if args.manual_gc and args.manual_gc_eval:
-                # Collect only the objects created and used in evaluation.
-                gc.collect(generation=0)
 
         # Checkpointing
-        saved_checkpoint = False
-        if args.exit_signal_handler:
-            signal_handler = get_signal_handler()
-            if any(signal_handler.signals_received()):
-                save_checkpoint_and_time(iteration, model, optimizer,
-                                         opt_param_scheduler)
-                print_datetime('exiting program after receiving SIGTERM.')
-                exit = True
-                break
+        # saved_checkpoint = False
 
-        if args.save and args.save_interval and \
-           iteration % args.save_interval == 0:
-            save_checkpoint_and_time(iteration, model, optimizer,
-                                     opt_param_scheduler)
-            saved_checkpoint = True
-
-        # Exiting based on duration
-        if args.exit_duration_in_mins:
-            train_time = (time.time() - _TRAIN_START_TIME) / 60.0
-            done_cuda = torch.cuda.IntTensor(
-                [train_time > args.exit_duration_in_mins])
-            torch.distributed.all_reduce(
-                done_cuda, op=torch.distributed.ReduceOp.MAX)
-            done = done_cuda.item()
-            if done:
-                if not saved_checkpoint:
-                    save_checkpoint_and_time(iteration, model, optimizer,
-                                             opt_param_scheduler)
-                print_datetime('exiting program after {} minutes'.format(train_time))
-                exit = True
-                break
-
-        # Exiting based on iterations
-        if args.exit_interval and iteration % args.exit_interval == 0:
-            if args.save and not saved_checkpoint:
-                save_checkpoint_and_time(iteration, model, optimizer,
-                                         opt_param_scheduler)
-            torch.distributed.barrier()
-            print_datetime('exiting program at iteration {}'.format(iteration))
-            exit = True
-            break
+        # # Exiting based on iterations
+        # if args.exit_interval and iteration % args.exit_interval == 0:
+        #     if args.save and not saved_checkpoint:
+        #         save_checkpoint_and_time(iteration, model, optimizer,
+        #                                  opt_param_scheduler)
+        #     torch.distributed.barrier()
+        #     print_datetime('exiting program at iteration {}'.format(iteration))
+        #     exit = True
+        #     break
 
         if args.profile and \
            iteration == args.profile_step_end and \
@@ -956,12 +900,15 @@ def train(forward_step_func, model, optimizer, opt_param_scheduler,
 
     if enable_prof:
         prof.stop()
-        if torch.distributed.get_rank() == 0:
-            prof.export_chrome_trace(f"/workspace/weipipe/{algo}-trace.json")
-            
+        prof.export_chrome_trace(f"/workspace/weipipe/{algo}-trace-rk{torch.distributed.get_rank()}.json")
+    
+
+    
     m = torch.cuda.max_memory_allocated() / 1024**3 
     max_mem = torch.tensor(m).cuda()
     dist.all_reduce (max_mem, op=dist.ReduceOp.MAX)
+    
+
     
     if is_last_rank():
         output_statistics (algo, total_time/(args.train_iters-1)*1000, float(max_mem))

@@ -50,7 +50,6 @@ def model_provider(pre_process=True, post_process=True) -> Union[GPTModel, megat
 
     print_rank_0('building GPT model ...')
     config = core_transformer_config_from_args(get_args())
-
     if args.use_mcore_models:
         if args.spec is not None:
             transformer_layer_spec = import_module(args.spec)
@@ -109,18 +108,21 @@ def get_batch(data_iterator):
         return None, None, None, attention_mask, None
 
     # Items and their type.
-    keys = ['text']
-    datatype = torch.int64
+    # keys = ['text']
+    # datatype = torch.int64
 
-    # Broadcast data.
-    if data_iterator is not None:
-        data = next(data_iterator)
-    else:
-        data = None
-    data_b = tensor_parallel.broadcast_data(keys, data, datatype)
+    # # Broadcast data.
+    # if data_iterator is not None:
+    #     data = next(data_iterator)
+    # else:
+    #     data = None
+    # data_b = tensor_parallel.broadcast_data(keys, data, datatype)
 
-    # Unpack.
-    tokens_ = data_b['text'].long()
+    # # Unpack.
+    # tokens_ = data_b['text'].long()
+    
+    tokens_ = torch.randint(0, 4,(args.micro_batch_size, args.seq_length+1)).long().cuda()
+    
     labels = tokens_[:, 1:].contiguous()
     tokens = tokens_[:, :-1].contiguous()
 

@@ -83,7 +83,7 @@ options=" \
   --tokenizer-type GPTSentencePieceTokenizer \
   --tokenizer-model /tmp/zb_sample_dataset/tokenizers/tokenizer.model \
   --split 98,2,0 \
-  --clip-grad 8.0 \
+  --clip-grad 1.0 \
   --weight-decay 0.1 \
   --adam-beta1 0.9 \
   --adam-beta2 0.95 \
@@ -91,14 +91,14 @@ options=" \
   --no-barrier-with-level-1-timing \
   --swiglu \
   --use-flash-attn \
-  --fp16-lm-cross-entropy \
-  --allow-padding-num-layers"
+  --fp16-lm-cross-entropy "
+  # --allow-padding-num-layers"
   # --profile-step-start 150 \
   # --profile-step-end 170 \
   # --profile-ranks $profile_ranks \
   
 if [ -z "$FP32" ]; then
-  options="$options --fp16"
+  options="$options --fp16 --loss-scale 1"
 fi
 
 if [ ! -z "$CHECKPOINTING" ]; then

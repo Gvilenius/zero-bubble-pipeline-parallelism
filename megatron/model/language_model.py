@@ -36,6 +36,7 @@ def parallel_lm_logits(input_, word_embeddings_weight, parallel_output,
     # Matrix multiply.
     
     import os
+
     if os.environ["TRAIN_EMBEDDING"] == "1":
         logits_parallel = tensor_parallel.linear_with_grad_accumulation_and_async_allreduce(
                 input=input_parallel,
@@ -370,6 +371,7 @@ class TransformerLanguageModel(MegatronModule):
             reset_random_state()
 
         # Embeddings.
+        args.padded_vocab_size=4
         if self.pre_process:
             self.embedding = Embedding(self.hidden_size,
                                        args.padded_vocab_size,
